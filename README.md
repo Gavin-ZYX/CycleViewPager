@@ -1,14 +1,16 @@
 # CycleViewPager
 ##前言
-目前市场上的app中，轮播图可以说是很常见的。
+目前市场上的APP中，轮播图可以说是很常见的。一个好的轮播图，基本上适用于所有的APP。是时候打造一个自己的轮播图了，不要等到用的时候才取Google。
+> 本文参考自[Android实现Banner界面广告图片循环轮播（包括实现手动滑动循环）](http://blog.csdn.net/stevenhu_223/article/details/45577781)，根据该代码改编
 
 ##功能
-- 网络加载图片
+轮播图需要实现一下功能
 - 图片循环轮播
 - 可添加文字
 - 最后一张到第一张的切换也要有切换效果
+- 循环、自动播放可控制
 
-还有我们都比较关注的一点：这轮子必须易拆、易装，一大堆代码文件搬来搬去不是我们想要的。
+还有我们都比较关注的一点：**这轮子必须易拆、易装，可扩展性强**。每次换个项目就要拷贝好几个文件，改一大堆代码，这是很烦的。
 
 ##实现
 再多的文字也不如一张图来得直观，先来个福利，回头再说怎实现的。
@@ -19,16 +21,15 @@
 这里使用ViewPager来实现轮播的效果，但是ViewPager是滑动到最后一张时，是不能跳转到第一张的。于是，我们可以这样：
 - 需要显示的轮播图有N张
 - 往ViewPager中添加N个View，这时ViewPager中有：
-View1、View2、View3 ... View（N）
-- 再往ViewPager中添加View1，这时ViewPager中有：
-View1、View2、View3 ... View（N）、View（1）
+View（1）、View（2）、View（3） ... View（N）
+- 再往ViewPager中添加View（1），这时ViewPager中有：
+View（1）、View（2）、View（3） ... View（N）、View（1）
 
-这样就可以实现一种视觉效果：滑动到最后张的时候，再往后滑动就回到了第一张。
+这样就可以实现一种视觉效果：滑动到最后一张 View（N）的时候，再往后滑动就回到了第一张View（1）。
 这也适用于从第一张条转到最后一张的实现。
 **文字看着费解？那就看图吧（还好会那么一点点PS）**
 **例：**
 需要显示三张图：
-![Uploading 未标题-2_015866.png . . .]
 
 ![需要轮播的图片](http://upload-images.jianshu.io/upload_images/1638147-8354fecf38dc4f32.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 经过处理，变成这样
@@ -36,17 +37,22 @@ View1、View2、View3 ... View（N）、View（1）
 ![处理后的轮播图](http://upload-images.jianshu.io/upload_images/1638147-9f0b7e21bf1e434b.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
 在界面上看到的是三张图片，而实际在ViewPager中的是这样的5张。
-- 当从View4跳转到View5时，在代码中将视图切换到View2，应为图片是一样的，所有在界面上看不到任何效果。
+- 当从View4跳转到View5时，在代码中立刻将视图切换到View2，应为图片是一样的，所有在界面上看不到任何效果。
 - 同理，当从View2跳转到View1时，在代码中将视图切换到View4。
 
-图片展示流程：
-【View2】 -->【View3】 --> 【View4】 --> 【View5 ->View2（在瞬间完成）】（完成一次循环）-->【View3】 -->【View4】....
+自动轮播流程：
+【View2】 -->【View3】 --> 【View4】 --> 【View5 -->View2】（完成一次循环）-->【View3】 -->【View4】....
 当显示View5的时候，立刻切换到View2（View5和View2显示的内容是相同的），这样就实现了图片轮播。
+这里View5 ->View2的切换巧妙利用了ViewPager中的方法：
+```java
+setCurrentItem(int item, boolean smoothScroll)
+```
+参数smoothScroll为false的时候，实现了“看不见”的跳转。
 
 还是不大清楚？那就直接看代码吧
 
 ####代码
-说完思路，就看看代码。
+思路说完，上代码
 - **创建model**
 这里创建一个Info类，模拟实际应用中的数据。里面有title和url字段。
 ```java
@@ -77,7 +83,7 @@ public class Info {
 }
 ```
 - **布局**
-为了实现画面重叠的效果，这里用了相对布局，轮播图使用ViewPager来实现。底下有两个LinearLayout，第一个用来放指示器，在java代码中动态添加；另一个就用来显示Title了，当然，如果还有其他需要显示的，可以添加到这个布局里面。
+为了实现画面重叠的效果，这里用了相对布局，轮播图使用ViewPager来实现。后面有两个LinearLayout，第一个LinearLayout用来放指示器，在java代码中动态添加；第二个LinearLayout就用来显示Title了，当然，如果还需要显示的其他内容，可以在这个布局里面中添加。
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -496,15 +502,16 @@ public class CycleViewPager extends FrameLayout implements ViewPager.OnPageChang
     }
 }
 ```
-变量：
-handler：执行定时轮播
-mCurrentPosition：当前位置
-方法：
-setIndicators：设置指示器的图片（必须在setData前调用）
-setData：根据数据，生成对应的View
-setIndicator：设置指示器和文字内容
-onPageSelected、onPageScrollStateChanged：利用ViewPager的滚动监听，实现了上面的思路，onPageSelected中根据ViewPager中显示的位置，改变mCurrentPosition的值，然后在onPageScrollStateChanged中根据mCurrentPosition重新设置页面（这里的setCurrentItem没有动画效果）。
-这里面还有个方法getImageView：根据URL生成Viewpager中对应的View（*根据实际的图片加载框架来生成，这里使用了Picasso是想了网络图片的加载*），看看对应的代码
+从里面挑了几个变量和方法说明一下：
+**变量**：
+handler、runnable：实现定时轮播
+mCurrentPosition：表示当前位置
+**方法**：
+setIndicators()：设置指示器的图片（必须在setData前调用）
+setData()：根据数据，生成对应的轮播图
+setIndicator()：设置指示器和文字内容
+onPageSelected()、onPageScrollStateChanged()：利用ViewPager的滚动监听，实现了上面的思路。onPageSelected()中根据ViewPager中显示的位置，改变mCurrentPosition的值，然后在onPageScrollStateChanged()中根据mCurrentPosition重新设置页面（这里的setCurrentItem没有动画效果）。
+getImageView()：根据URL生成Viewpager中对应的各个View（*根据实际的图片加载框架来生成，这里使用了Picasso是想了网络图片的加载*），看看getImageView()中调用的代码
 ```
     /**
      * 得到轮播图的View
@@ -535,11 +542,11 @@ onPageSelected、onPageScrollStateChanged：利用ViewPager的滚动监听，实
 ```xml
 <color name="cycle_image_bg">#44222222</color>
 ```
-代码很简单，创建了一个显示图片的View，然后在图片的外层加了个半透明的图，防止文字和图片中白色的部分重叠在一起，导致看不清文字。
+代码很简单，创建了一个显示图片的布局，先在布局中添加了需要显示的图片，然后加了个半透明的图，防止显示时文字和图片中白色的部分重叠在一起，导致看不清文字。
 
 - **在Acitivty中使用**
+![](http://upload-images.jianshu.io/upload_images/1638147-2b309ce0aa2389a1.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 轮子打造好了，不拿出来溜一溜？
-准备好，我要开车了
 ```java
 public class MainActivity extends AppCompatActivity {
 
@@ -606,6 +613,6 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
-使用起来也是很简单的，只要设置下图片、数据、点击监听就可以了。
-
-放到自己的项目中只需要改下布局，然后把CycleViewPager中的Info改成自己的Model，修改下对应的内容就可以了。
+使用起来也是很简单的，只要设置下图片、数据、点击监听就可以了。（之前贴过MainActivity.getImageView()方法了，这里就不贴了）
+**放到自己的项目中？**
+只需要调下布局，根据自己的图片加载框架改下getImageView（或者也可以直接用我的），然后把CycleViewPager中的Info改成自己的Model就可以了。
